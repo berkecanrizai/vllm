@@ -263,11 +263,6 @@ class LocalOrDistributedWorkerBase(WorkerBase):
             broadcast_data.update(kwargs)
             broadcast_tensor_dict(broadcast_data, src=0)
 
-        if execute_model_req.async_callback:
-            model_input = dataclasses.replace(  # type: ignore
-                model_input,
-                async_callback=execute_model_req.async_callback)
-
         return model_input, worker_input, kwargs
 
     def prepare_input(
@@ -294,11 +289,27 @@ class LocalOrDistributedWorkerBase(WorkerBase):
 
     def execute_model(
         self,
-        execute_model_req: Optional[ExecuteModelRequest] = None,
+        execute_model_req: Optional[ExecuteModelRequest] = None
     ) -> Optional[List[SamplerOutput]]:
         """Executes at least one model step on the given sequences, unless no
         sequences are provided."""
         start_time = time.perf_counter()
+
+        #FIXME: This is a workaround to use same logits_processors for requests
+        # with same request_id. Otherwise async execute model will not work due
+        # to logits_processors being copied when submitting to multi processing
+        # Queue.
+        if not hasattr(self, 'global_logits_processors'):
+            self.global_logits_processors: Dict[str, object] = dict()
+
+        if execute_model_req:
+            for seq_group in execute_model_req.seq_group_metadata_list:
+                if seq_group.request_id not in self.global_logits_processors:
+                    self.global_logits_processors[seq_group.request_id] = \
+                        seq_group.sampling_params.logits_processors
+                else:
+                    seq_group.sampling_params.logits_processors = \
+                        self.global_logits_processors[seq_group.request_id]
 
         inputs = self.prepare_input(execute_model_req)
         if inputs is None:

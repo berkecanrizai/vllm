@@ -46,8 +46,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     VLLM_TARGET_DEVICE=cpu python3 setup.py bdist_wheel && \
     pip install dist/*.whl
 
+# RUN pip install https://vllm-wheels.s3.us-west-2.amazonaws.com/nightly/vllm-0.5.5-cp38-abi3-manylinux1_x86_64.whl
+# RUN pip install triton
+
+# RUN pip install vllm==0.5.5
 WORKDIR /workspace/
 
 RUN ln -s /workspace/vllm/tests && ln -s /workspace/vllm/examples && ln -s /workspace/vllm/benchmarks
-
-ENTRYPOINT ["python3", "-m", "vllm.entrypoints.openai.api_server"]
+ENTRYPOINT ["vllm", "serve"]
+#ENTRYPOINT ["python3", "-m", "vllm.entrypoints.openai.api_server", "--trust-remote-code"]
